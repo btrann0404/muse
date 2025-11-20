@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Nav from "@/components/Nav";
 import ImageModal from "@/components/ImageModal";
 import ImageCarousel from "@/components/ImageCarousel";
+import { FriendsList } from "@/components/FriendsList";
 
 interface Session {
   id: number;
@@ -22,7 +23,6 @@ export default function ProfilePage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load sessions from localStorage
     const savedSessions = JSON.parse(localStorage.getItem("sessions") || "[]");
     setSessions(savedSessions);
   }, []);
@@ -70,6 +70,7 @@ export default function ProfilePage() {
               <h1 className="mb-2 font-serif text-4xl font-light italic tracking-tight text-[#2d2d2a]">Brandon</h1>
               <p className="font-light italic text-[#6b6b66]">Student</p>
             </div>
+            <FriendsList/>
             {sessions.length > 0 && (
               <button
                 onClick={handleClearAll}
