@@ -1,22 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import {
-  userSignUp,
-  getUserInfo,
-  updateUserInfo,
-  getCurrentUser,
-} from "@/lib/users";
-import { getCurrentSession } from "@/lib/sessions";
+import { useUser, SignIn, SignOutButton } from "@clerk/nextjs";
+import { getUserInfo, updateUserInfo, getCurrentUser } from "@/lib/users";
 
 export default function TestUsersPage() {
-  // Sign up state
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Clerk Hook for Client-Side User
+  const { user, isLoaded, isSignedIn } = useUser();
 
   // Get user info state
   const [userId, setUserId] = useState("");
@@ -24,60 +14,42 @@ export default function TestUsersPage() {
   const [userInfoResult, setUserInfoResult] = useState<string | null>(null);
   const [userInfoError, setUserInfoError] = useState<string | null>(null);
 
-  // update user state
   // Update user info state
-  const [updateUserId, setUpdateUserId] = useState("");
-  const [updateField, setUpdateField] = useState<"name" | "email">("name");
   const [updateValue, setUpdateValue] = useState("");
   const [updateLoading, setUpdateLoading] = useState(false);
   const [updateResult, setUpdateResult] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
-  // Get current user state
-  const [currentUserLoading, setCurrentUserLoading] = useState(false);
-  const [currentUserResult, setCurrentUserResult] = useState<string | null>(
-    null
-  );
-  const [currentUserError, setCurrentUserError] = useState<string | null>(null);
+  // DB Sync Check State
+  const [dbCheckLoading, setDbCheckLoading] = useState(false);
+  const [dbCheckResult, setDbCheckResult] = useState<string | null>(null);
 
-  // Test function state
-  const [testLoading, setTestLoading] = useState(false);
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
+  // 1. Check if Clerk User exists in Supabase
+  const handleCheckDbSync = async () => {
+    if (!user) return;
+    setDbCheckLoading(true);
+    setDbCheckResult(null);
     try {
-      const data = await userSignUp(name, email, password);
-      setResult(
-        `Success! User created:\n` +
-          `Auth User ID: ${data.user.id}\n` +
-          `Email: ${data.user.email}\n` +
-          `Profile Name: ${data.profile.name}\n` +
-          `Profile Email: ${data.profile.email}`
-      );
-      // Set the user ID for easy testing
-      setUserId(data.user.id);
-      // Clear form
-      setName("");
-      setEmail("");
-      setPassword("");
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else if (err && typeof err === "object" && "message" in err) {
-        setError(String(err.message));
+      // We use the server action to check Supabase
+      const dbUser = await getUserInfo(user.id);
+
+      if (dbUser) {
+        setDbCheckResult(
+          `✅ Synced!\nSupabase ID: ${dbUser.id}\nName: ${dbUser.name}\nEmail: ${dbUser.email}`
+        );
       } else {
-        setError(`Unknown error: ${JSON.stringify(err, null, 2)}`);
+        setDbCheckResult(
+          `❌ Not Synced Yet.\nUser ID ${user.id} not found in Supabase.\n\nTip: Webhooks might be delayed or failed. Check Clerk Dashboard > Webhooks.`
+        );
       }
-      console.error("Signup error:", err);
+    } catch (err) {
+      setDbCheckResult(`❌ Error Checking Sync:\n${err}`);
     } finally {
-      setLoading(false);
+      setDbCheckLoading(false);
     }
   };
 
+  // 2. Get Any User Info
   const handleGetUserInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     setUserInfoLoading(true);
@@ -86,382 +58,171 @@ export default function TestUsersPage() {
 
     try {
       const data = await getUserInfo(userId);
-      setUserInfoResult(
-        `User Info:\n` +
-          `ID: ${data.id}\n` +
-          `Name: ${data.name}\n` +
-          `Email: ${data.email}\n` +
-          `Created At: ${data.created_at}`
-      );
-    } catch (err) {
-      if (err instanceof Error) {
-        setUserInfoError(err.message);
-      } else if (err && typeof err === "object" && "message" in err) {
-        setUserInfoError(String(err.message));
+      if (data) {
+        setUserInfoResult(
+          `User Info:\nID: ${data.id}\nName: ${data.name}\nEmail: ${data.email}`
+        );
       } else {
-        setUserInfoError(`Unknown error: ${JSON.stringify(err, null, 2)}`);
+        setUserInfoResult("User not found in database.");
       }
-      console.error("Get user info error:", err);
+    } catch (err) {
+      setUserInfoError(err instanceof Error ? err.message : String(err));
     } finally {
       setUserInfoLoading(false);
     }
   };
 
-  const handleUpdateUserInfo = async (e: React.FormEvent) => {
+  // 3. Update User Info
+  const handleUpdateName = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
+
     setUpdateLoading(true);
     setUpdateError(null);
     setUpdateResult(null);
 
     try {
-      const data = await updateUserInfo(updateUserId, updateField, updateValue);
-      setUpdateResult(
-        `Success! User updated:\n` +
-          `ID: ${data.id}\n` +
-          `Name: ${data.name}\n` +
-          `Email: ${data.email}\n` +
-          `Updated At: ${new Date().toISOString()}`
-      );
-      // Clear form
+      // Call Server Action
+      const data = await updateUserInfo(user.id, "name", updateValue);
+      setUpdateResult(`Success! Name updated to: ${data.name}`);
       setUpdateValue("");
+      // Refresh Clerk user to show new name if we were syncing back (optional)
+      user.reload();
     } catch (err) {
-      if (err instanceof Error) {
-        setUpdateError(err.message);
-      } else if (err && typeof err === "object" && "message" in err) {
-        setUpdateError(String(err.message));
-      } else {
-        setUpdateError(`Unknown error: ${JSON.stringify(err, null, 2)}`);
-      }
-      console.error("Update user info error:", err);
+      setUpdateError(err instanceof Error ? err.message : String(err));
     } finally {
       setUpdateLoading(false);
     }
   };
 
-  const handleGetCurrentUser = async () => {
-    setCurrentUserLoading(true);
-    setCurrentUserError(null);
-    setCurrentUserResult(null);
-
-    try {
-      const user = await getCurrentUser();
-      if (!user) {
-        setCurrentUserResult("Not logged in - no current user");
-      } else {
-        setCurrentUserResult(
-          `Current User:\n` +
-            `ID: ${user.id}\n` +
-            `Email: ${user.email}\n` +
-            `Display Name: ${
-              user.user_metadata?.name ||
-              user.user_metadata?.display_name ||
-              "Not set"
-            }\n` +
-            `Created At: ${user.created_at}\n` +
-            `Last Sign In: ${user.last_sign_in_at || "Never"}`
-        );
-      }
-    } catch (err) {
-      if (err instanceof Error) {
-        setCurrentUserError(err.message);
-      } else if (err && typeof err === "object" && "message" in err) {
-        setCurrentUserError(String(err.message));
-      } else {
-        setCurrentUserError(`Unknown error: ${JSON.stringify(err, null, 2)}`);
-      }
-      console.error("Get current user error:", err);
-    } finally {
-      setCurrentUserLoading(false);
-    }
-  };
-
-  const handleTestFunction = async () => {
-    setTestLoading(true);
-    try {
-      const result = await getCurrentSession();
-      // console.log("Test Function Result:", result);
-      // console.log("Result Type:", typeof result);
-      // console.log("Result JSON:", JSON.stringify(result, null, 2));
-    } catch (err) {
-      console.error("Test Function Error:", err);
-    } finally {
-      setTestLoading(false);
-    }
-  };
+  if (!isLoaded) return <div className="p-8">Loading Clerk...</div>;
 
   return (
     <div className="min-h-screen bg-[#f8f7f4] text-[#2d2d2a] p-8">
       <div className="max-w-2xl mx-auto space-y-8">
         <h1 className="font-serif text-3xl font-light italic mb-8">
-          Test Users
+          Migration Test Page
         </h1>
 
-        {/* Sign Up Section */}
+        {/* AUTH SECTION */}
         <div className="border-[6px] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-sm">
-          <h2 className="font-serif text-xl font-light italic mb-6">Sign Up</h2>
-          <form onSubmit={handleSignUp} className="space-y-6">
+          <h2 className="font-serif text-xl font-light italic mb-6">
+            1. Authentication
+          </h2>
+
+          {!isSignedIn ? (
             <div>
-              <label className="block text-sm font-light mb-2 text-[#6b6b66]">
-                Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa] text-[#2d2d2a] focus:outline-none focus:border-[#2d2d2a]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-light mb-2 text-[#6b6b66]">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa] text-[#2d2d2a] focus:outline-none focus:border-[#2d2d2a]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-light mb-2 text-[#6b6b66]">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa] text-[#2d2d2a] focus:outline-none focus:border-[#2d2d2a]"
-              />
-              <p className="text-xs font-light italic text-[#6b6b66] mt-1">
-                Minimum 6 characters
+              <p className="mb-4 text-sm text-[#6b6b66]">
+                You are signed out. Sign in with Clerk to test.
               </p>
+              <SignIn />
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 text-green-800 rounded">
+                <p className="font-bold">Signed In as:</p>
+                <p>Name: {user.fullName}</p>
+                <p>Email: {user.primaryEmailAddress?.emailAddress}</p>
+                <p className="text-xs mt-2 font-mono">Clerk ID: {user.id}</p>
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] transition-all hover:bg-[#2d2d2a] hover:text-[#fdfcfa] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Creating..." : "Sign Up"}
-            </button>
-          </form>
-
-          {result && (
-            <div className="mt-6 p-4 border-[2px] border-[#f0ede6] bg-[#fdfcfa]">
-              <p className="text-sm font-light text-[#2d2d2a] mb-2">
-                ✅ Success!
-              </p>
-              <pre className="whitespace-pre-wrap text-xs font-light text-[#6b6b66]">
-                {result}
-              </pre>
-            </div>
-          )}
-
-          {error && (
-            <div className="mt-6 p-4 border-[2px] border-red-300 bg-red-50">
-              <p className="text-sm font-light text-red-700">
-                ❌ Error: {error}
-              </p>
+              <SignOutButton>
+                <button className="px-4 py-2 bg-[#2d2d2a] text-white text-sm uppercase tracking-wider hover:opacity-90">
+                  Sign Out
+                </button>
+              </SignOutButton>
             </div>
           )}
         </div>
 
-        {/* Get User Info Section */}
+        {/* DATABASE SYNC CHECK */}
+        {isSignedIn && (
+          <div className="border-[6px] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-sm">
+            <h2 className="font-serif text-xl font-light italic mb-6">
+              2. Webhook/DB Sync Check
+            </h2>
+            <p className="text-sm text-[#6b6b66] mb-4">
+              Check if your Clerk user was successfully copied to Supabase via
+              the Webhook.
+            </p>
+
+            <button
+              onClick={handleCheckDbSync}
+              disabled={dbCheckLoading}
+              className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] hover:bg-[#2d2d2a] hover:text-[#fdfcfa]"
+            >
+              {dbCheckLoading ? "Checking..." : "Check Database Sync"}
+            </button>
+
+            {dbCheckResult && (
+              <pre className="mt-4 p-4 bg-gray-100 text-xs overflow-auto whitespace-pre-wrap">
+                {dbCheckResult}
+              </pre>
+            )}
+          </div>
+        )}
+
+        {/* MANUAL DB LOOKUP */}
         <div className="border-[6px] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-sm">
           <h2 className="font-serif text-xl font-light italic mb-6">
-            Get User Info
+            3. Manual DB Lookup
           </h2>
-          <form onSubmit={handleGetUserInfo} className="space-y-6">
-            <div>
-              <label className="block text-sm font-light mb-2 text-[#6b6b66]">
-                User ID
-              </label>
-              <input
-                type="text"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                required
-                placeholder="Paste user ID from sign up above"
-                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa] text-[#2d2d2a] focus:outline-none focus:border-[#2d2d2a]"
-              />
-            </div>
-
+          <form onSubmit={handleGetUserInfo} className="space-y-4">
+            <input
+              type="text"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="Paste any User ID"
+              className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa]"
+            />
             <button
               type="submit"
               disabled={userInfoLoading}
-              className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] transition-all hover:bg-[#2d2d2a] hover:text-[#fdfcfa] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] hover:bg-[#2d2d2a] hover:text-[#fdfcfa]"
             >
-              {userInfoLoading ? "Loading..." : "Get User Info"}
+              {userInfoLoading ? "Searching..." : "Search User"}
             </button>
           </form>
-
           {userInfoResult && (
-            <div className="mt-6 p-4 border-[2px] border-[#f0ede6] bg-[#fdfcfa]">
-              <p className="text-sm font-light text-[#2d2d2a] mb-2">
-                ✅ Success!
-              </p>
-              <pre className="whitespace-pre-wrap text-xs font-light text-[#6b6b66]">
-                {userInfoResult}
-              </pre>
-            </div>
+            <pre className="mt-4 p-4 bg-gray-100 text-xs overflow-auto whitespace-pre-wrap">
+              {userInfoResult}
+            </pre>
           )}
-
           {userInfoError && (
-            <div className="mt-6 p-4 border-[2px] border-red-300 bg-red-50">
-              <p className="text-sm font-light text-red-700">
-                ❌ Error: {userInfoError}
-              </p>
-            </div>
+            <p className="mt-4 text-sm text-red-600">Error: {userInfoError}</p>
           )}
         </div>
 
-        {/* Get Current User Section */}
-        <div className="border-[6px] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-sm">
-          <h2 className="font-serif text-xl font-light italic mb-6">
-            Get Current User
-          </h2>
-          <div className="space-y-6">
-            <p className="text-sm font-light text-[#6b6b66]">
-              Get the currently authenticated user. No ID needed - uses your
-              current session.
-            </p>
-
-            <button
-              type="button"
-              onClick={handleGetCurrentUser}
-              disabled={currentUserLoading}
-              className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] transition-all hover:bg-[#2d2d2a] hover:text-[#fdfcfa] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {currentUserLoading ? "Loading..." : "Get Current User"}
-            </button>
-          </div>
-
-          {currentUserResult && (
-            <div className="mt-6 p-4 border-[2px] border-[#f0ede6] bg-[#fdfcfa]">
-              <p className="text-sm font-light text-[#2d2d2a] mb-2">
-                ✅ Success!
-              </p>
-              <pre className="whitespace-pre-wrap text-xs font-light text-[#6b6b66]">
-                {currentUserResult}
-              </pre>
-            </div>
-          )}
-
-          {currentUserError && (
-            <div className="mt-6 p-4 border-[2px] border-red-300 bg-red-50">
-              <p className="text-sm font-light text-red-700">
-                ❌ Error: {currentUserError}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Test Function Section */}
-        <div className="border-[6px] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-sm">
-          <h2 className="font-serif text-xl font-light italic mb-6">
-            Test Function
-          </h2>
-          <div className="space-y-6">
-            <p className="text-sm font-light text-[#6b6b66]">
-              Test a function and see the result in the console. Check your
-              browser's developer console (F12).
-            </p>
-
-            <button
-              type="button"
-              onClick={handleTestFunction}
-              disabled={testLoading}
-              className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] transition-all hover:bg-[#2d2d2a] hover:text-[#fdfcfa] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {testLoading ? "Testing..." : "Test Function (Check Console)"}
-            </button>
-          </div>
-        </div>
-
-        {/* Update User Info Section */}
-        <div className="border-[6px] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-sm">
-          <h2 className="font-serif text-xl font-light italic mb-6">
-            Update User Info
-          </h2>
-          <form onSubmit={handleUpdateUserInfo} className="space-y-6">
-            <div>
-              <label className="block text-sm font-light mb-2 text-[#6b6b66]">
-                User ID
-              </label>
+        {/* UPDATE TEST */}
+        {isSignedIn && (
+          <div className="border-[6px] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-sm">
+            <h2 className="font-serif text-xl font-light italic mb-6">
+              4. Update Supabase Profile
+            </h2>
+            <form onSubmit={handleUpdateName} className="space-y-4">
               <input
                 type="text"
-                value={updateUserId}
-                onChange={(e) => setUpdateUserId(e.target.value)}
-                required
-                placeholder="Paste user ID"
-                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa] text-[#2d2d2a] focus:outline-none focus:border-[#2d2d2a]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-light mb-2 text-[#6b6b66]">
-                Field to Update
-              </label>
-              <select
-                value={updateField}
-                onChange={(e) =>
-                  setUpdateField(e.target.value as "name" | "email")
-                }
-                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa] text-[#2d2d2a] focus:outline-none focus:border-[#2d2d2a]"
-              >
-                <option value="name">Name</option>
-                <option value="email">Email</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-light mb-2 text-[#6b6b66]">
-                New Value
-              </label>
-              <input
-                type={updateField === "email" ? "email" : "text"}
                 value={updateValue}
                 onChange={(e) => setUpdateValue(e.target.value)}
-                required
-                placeholder={`Enter new ${updateField}`}
-                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa] text-[#2d2d2a] focus:outline-none focus:border-[#2d2d2a]"
+                placeholder="New Name"
+                className="w-full px-4 py-2 border-[2px] border-[#f0ede6] bg-[#fdfcfa]"
               />
-            </div>
-
-            <button
-              type="submit"
-              disabled={updateLoading}
-              className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] transition-all hover:bg-[#2d2d2a] hover:text-[#fdfcfa] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {updateLoading ? "Updating..." : "Update User Info"}
-            </button>
-          </form>
-
-          {updateResult && (
-            <div className="mt-6 p-4 border-[2px] border-[#f0ede6] bg-[#fdfcfa]">
-              <p className="text-sm font-light text-[#2d2d2a] mb-2">
-                ✅ Success!
-              </p>
-              <pre className="whitespace-pre-wrap text-xs font-light text-[#6b6b66]">
-                {updateResult}
-              </pre>
-            </div>
-          )}
-
-          {updateError && (
-            <div className="mt-6 p-4 border-[2px] border-red-300 bg-red-50">
-              <p className="text-sm font-light text-red-700">
-                ❌ Error: {updateError}
-              </p>
-            </div>
-          )}
-        </div>
+              <button
+                type="submit"
+                disabled={updateLoading}
+                className="w-full border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] hover:bg-[#2d2d2a] hover:text-[#fdfcfa]"
+              >
+                {updateLoading ? "Updating..." : "Update Name"}
+              </button>
+            </form>
+            {updateResult && (
+              <p className="mt-4 text-sm text-green-600">{updateResult}</p>
+            )}
+            {updateError && (
+              <p className="mt-4 text-sm text-red-600">Error: {updateError}</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
