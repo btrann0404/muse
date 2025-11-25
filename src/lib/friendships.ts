@@ -2,21 +2,21 @@
 
 import { supabase } from "./supabase";
 import { Database } from "@/types/database";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 
 export type Friendship = Database["public"]["Tables"]["friendships"]["Row"];
 
-// Send a friend request
-export async function sendFriendRequest(friendId: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+// Send a friend request (Username based)
+export async function sendFriendRequest(targetUsername: string) {
+  const user = await currentUser();
+  if (!user?.username) throw new Error("Unauthorized or no username set");
 
   const { data, error } = await supabase
     .from("friendships")
     .insert({
-      userid: userId, // FIX: use lowercase 'userid'
-      friendid: friendId, // FIX: use lowercase 'friendid'
-      status: "PENDING", // FIX: use uppercase 'PENDING'
+      username: user.username, // Me
+      friend_username: targetUsername, // Them
+      status: "PENDING",
     })
     .select()
     .single();
@@ -30,19 +30,15 @@ export async function sendFriendRequest(friendId: string) {
 
 // Get pending friend requests for the current user
 export async function getFriendRequests() {
-  const { userId } = await auth();
-  if (!userId) return [];
+  const user = await currentUser();
+  if (!user?.username) return [];
 
   const { data, error } = await supabase
     .from("friendships")
     .select(
       `
-      id,
-      userid,
-      friendid,
-      status,
-      created_at,
-      sender:users!friendships_userid_fkey (
+      *,
+      sender:users!friendships_username_fkey (
         id,
         name,
         username,
@@ -50,7 +46,7 @@ export async function getFriendRequests() {
       )
     `
     )
-    .eq("friendid", userId)
+    .eq("friend_username", user.username) // I am the friend (recipient)
     .eq("status", "PENDING");
 
   if (error) {
@@ -58,18 +54,17 @@ export async function getFriendRequests() {
     return [];
   }
 
-  console.log("Friend RQ Found:", { data });
   return data || [];
 }
 
 // Accept a friend request
 export async function acceptFriendRequest(friendshipId: string) {
-  const { userId } = await auth();
+  const { userId } = await auth(); // We still verify auth
   if (!userId) throw new Error("Unauthorized");
 
   const { data, error } = await supabase
     .from("friendships")
-    .update({ status: "ACCEPTED" }) // FIX: use uppercase 'ACCEPTED'
+    .update({ status: "ACCEPTED" })
     .eq("id", friendshipId)
     .select()
     .single();
@@ -99,16 +94,15 @@ export async function removeFriendship(friendshipId: string) {
 }
 
 // Check if friendship exists (any status)
-export async function checkFriendshipStatus(friendId: string) {
-  const { userId } = await auth();
-  if (!userId) return null;
+export async function checkFriendshipStatus(targetUsername: string) {
+  const user = await currentUser();
+  if (!user?.username) return null;
 
   const { data, error } = await supabase
     .from("friendships")
     .select("*")
-    // FIX: use lowercase 'userid' and 'friendid' in the query string
     .or(
-      `and(userid.eq.${userId},friendid.eq.${friendId}),and(userid.eq.${friendId},friendid.eq.${userId})`
+      `and(username.eq.${user.username},friend_username.eq.${targetUsername}),and(username.eq.${targetUsername},friend_username.eq.${user.username})`
     )
     .single();
 

@@ -2,6 +2,7 @@
 
 import { isUserExist } from "@/lib/users";
 import { useState } from "react";
+import { sendFriendRequest } from "@/lib/friendships";
 
 type Props = {};
 
@@ -16,8 +17,8 @@ export default function FindFriendModal({}: Props) {
       return;
     }
 
-    const boolUser = await isUserExist(username);
-    if (boolUser) {
+    const userData = await sendFriendRequest(username);
+    if (userData) {
       setResp("User Exist");
       console.log("user exist");
     } else {
