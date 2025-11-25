@@ -38,11 +38,11 @@ export async function getUserInfo(
   return data;
 }
 
-export async function isUserExist(id: string) {
+export async function isUserExist(username: string) {
   const client = await clerkClient();
   try {
-    const user = await client.users.getUser(id);
-    return !!user;
+    const user = await client.users.getUserList({ username: [username] });
+    return user.data.length > 0;
   } catch (e) {
     return false;
   }

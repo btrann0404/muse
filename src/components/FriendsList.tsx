@@ -35,18 +35,18 @@ export function FriendsList({ friends = [] }: FriendsListProps) {
 
   return (
     <>
-      <div className="">
+      <div className="mb-12">
         <button
           onClick={() =>
             !isModalOpen ? setModalOpen(true) : setModalOpen(false)
           }
-          className="font-serif text-2xl font-light italic hover:text-[#6b6b66] transition-colors"
+          className="font-serif text-2xl font-light italic"
         >
           Friends
         </button>
-        <span className="ml-2 font-serif text-2xl font-light italic text-[#6b6b66]">
+        <h1 className="font-serif text-2xl font-light italic">
           {friends.length}
-        </span>
+        </h1>
       </div>
 
       {isModalOpen && (

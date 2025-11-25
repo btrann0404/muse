@@ -8,15 +8,15 @@ type Props = {};
 export default function FindFriendModal({}: Props) {
   const [resp, setResp] = useState("");
   async function handleSubmit(formData: FormData) {
-    const id = formData.get("id");
+    const username = formData.get("username");
 
     //guard to make sure it string
-    if (typeof id !== "string") {
-      console.log("Invalid ID");
+    if (typeof username !== "string") {
+      console.log("Invalid username");
       return;
     }
 
-    const boolUser = await isUserExist(id);
+    const boolUser = await isUserExist(username);
     if (boolUser) {
       setResp("User Exist");
       console.log("user exist");
@@ -29,7 +29,7 @@ export default function FindFriendModal({}: Props) {
     <>
       <form action={handleSubmit} className="flex flex-row gap-2">
         <label>add friend</label>
-        <input id="userid" name="id" placeholder="friend id here..." />
+        <input id="username" name="username" placeholder="username here..." />
         <button type="submit">enter</button>
       </form>
       <div

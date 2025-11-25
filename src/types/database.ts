@@ -6,6 +6,7 @@ export interface Database {
           id: string;
           name: string;
           email: string;
+          username: string;
           created_at: string;
         };
 

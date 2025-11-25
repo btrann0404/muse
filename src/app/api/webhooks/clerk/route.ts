@@ -52,13 +52,18 @@ export async function POST(req: Request) {
   if (eventType === "user.created") {
     const { id, email_addresses, first_name, username } = evt.data;
     const email = email_addresses[0]?.email_address;
-    const name = first_name || username || "User";
+    const name = first_name || "User";
 
     console.log(`Creating/Updating User: ${id}, Email: ${email}`);
 
     const { error } = await supabaseAdmin
       .from("users")
-      .upsert({ id: id, email: email || "", name: name } as any);
+      .upsert({
+        id: id,
+        email: email || "",
+        name: name,
+        username: username,
+      } as any);
 
     if (error) {
       console.error("Supabase Insert Error:", error);

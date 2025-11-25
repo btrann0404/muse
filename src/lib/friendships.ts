@@ -14,9 +14,9 @@ export async function sendFriendRequest(friendId: string) {
   const { data, error } = await supabase
     .from("friendships")
     .insert({
-      userId,
-      friendId,
-      status: "pending",
+      userid: userId, // FIX: use lowercase 'userid'
+      friendid: friendId, // FIX: use lowercase 'friendid'
+      status: "PENDING", // FIX: use uppercase 'PENDING'
     })
     .select()
     .single();
@@ -38,25 +38,27 @@ export async function getFriendRequests() {
     .select(
       `
       id,
-      userId,
-      friendId,
+      userid,
+      friendid,
       status,
       created_at,
-      sender:users!friendships_userId_fkey (
+      sender:users!friendships_userid_fkey (
         id,
         name,
+        username,
         email
       )
     `
     )
-    .eq("friendId", userId)
-    .eq("status", "pending");
+    .eq("friendid", userId)
+    .eq("status", "PENDING");
 
   if (error) {
     console.error("Error fetching friend requests:", error);
     return [];
   }
 
+  console.log("Friend RQ Found:", { data });
   return data || [];
 }
 
@@ -67,7 +69,7 @@ export async function acceptFriendRequest(friendshipId: string) {
 
   const { data, error } = await supabase
     .from("friendships")
-    .update({ status: "accepted" })
+    .update({ status: "ACCEPTED" }) // FIX: use uppercase 'ACCEPTED'
     .eq("id", friendshipId)
     .select()
     .single();
@@ -104,8 +106,9 @@ export async function checkFriendshipStatus(friendId: string) {
   const { data, error } = await supabase
     .from("friendships")
     .select("*")
+    // FIX: use lowercase 'userid' and 'friendid' in the query string
     .or(
-      `and(userId.eq.${userId},friendId.eq.${friendId}),and(userId.eq.${friendId},friendId.eq.${userId})`
+      `and(userid.eq.${userId},friendid.eq.${friendId}),and(userid.eq.${friendId},friendid.eq.${userId})`
     )
     .single();
 
