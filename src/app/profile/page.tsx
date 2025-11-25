@@ -6,6 +6,12 @@ import ImageModal from "@/components/ImageModal";
 import ImageCarousel from "@/components/ImageCarousel";
 import { FriendsList } from "@/components/FriendsList";
 import { SignOutButton, useUser } from "@clerk/nextjs";
+import FindFriendModal from "@/components/FindFriendModal";
+import {
+  getFriendRequests,
+  acceptFriendRequest,
+  removeFriendship,
+} from "@/lib/friendships";
 
 interface Session {
   id: number;
@@ -19,15 +25,52 @@ interface Session {
   user: string;
 }
 
+interface FriendRequest {
+  id: string;
+  created_at: string;
+  sender: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+}
+
 export default function ProfilePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const { user } = useUser();
 
   useEffect(() => {
     const savedSessions = JSON.parse(localStorage.getItem("sessions") || "[]");
     setSessions(savedSessions);
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadFriendRequests();
+    }
+  }, [user]);
+
+  const loadFriendRequests = async () => {
+    try {
+      const requests = await getFriendRequests();
+      // Cast to unknown first if types don't match exactly due to join
+      setFriendRequests(requests as unknown as FriendRequest[]);
+    } catch (error) {
+      console.error("Failed to load friend requests", error);
+    }
+  };
+
+  const handleAccept = async (id: string) => {
+    await acceptFriendRequest(id);
+    loadFriendRequests();
+  };
+
+  const handleDecline = async (id: string) => {
+    await removeFriendship(id);
+    loadFriendRequests();
+  };
 
   const totalSeconds = sessions.reduce(
     (acc, session) => acc + session.durationSeconds,
@@ -73,27 +116,83 @@ export default function ProfilePage() {
       )}
 
       <main className="mx-auto max-w-4xl px-6 py-12">
-        <div className="mb-12 border-[8] border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
+        <div className="mb-12 border-8 border-[#f0ede6] bg-[#fdfcfa] p-8 shadow-lg">
+          <div className="flex flex-col md:flex-row items-start justify-between gap-6">
+            <div className="flex-1">
               <h1 className="mb-2 font-serif text-4xl font-light italic tracking-tight text-[#2d2d2a]">
-                {user?.firstName || "Loading name..."}
+                {user?.firstName || "Loading..."} {user?.lastName}
               </h1>
-              {/* <p className="font-light italic text-[#6b6b66]">Student</p> */}
+
+              <div className="mt-6 flex flex-wrap items-center gap-6">
+                <FriendsList />
+                <div className="h-8 w-px bg-[#2d2d2a]/10 hidden md:block"></div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-light uppercase tracking-wider text-[#6b6b66]">
+                    Add Friend
+                  </span>
+                  <FindFriendModal />
+                </div>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <FriendsList />
-              <SignOutButton />
-            </div>
-            {sessions.length > 0 && (
-              <>
+
+            <div className="flex flex-col items-start md:items-end gap-3">
+              <div className="cursor-pointer px-4 py-2 bg-[#2d2d2a] text-[#fdfcfa] text-sm font-light uppercase tracking-wider hover:bg-opacity-90 transition-all">
+                <SignOutButton />
+              </div>
+              {sessions.length > 0 && (
                 <button
                   onClick={handleClearAll}
-                  className="border border-[#2d2d2a] border-opacity-30 bg-[#fdfcfa] px-4 py-2 text-sm font-light uppercase tracking-wider text-[#2d2d2a] transition-all hover:bg-[#2d2d2a] hover:text-[#fdfcfa]"
+                  className="text-xs font-light uppercase tracking-wider text-red-800 hover:underline"
                 >
-                  Clear all
+                  Clear local data
                 </button>
-              </>
+              )}
+            </div>
+          </div>
+
+          {/* Friend Requests Section */}
+          <div className="mt-10 border-t border-[#f0ede6] pt-8">
+            <h3 className="mb-6 font-serif text-2xl italic text-[#2d2d2a]">
+              Friend Requests
+            </h3>
+            {friendRequests.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-[#2d2d2a]/20 p-6 text-center">
+                <p className="text-sm font-light text-[#6b6b66] italic">
+                  No pending requests.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {friendRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="flex items-center justify-between border border-[#f0ede6] bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                  >
+                    <div>
+                      <p className="font-medium text-[#2d2d2a] font-serif italic text-lg">
+                        {req.sender?.name || "Unknown User"}
+                      </p>
+                      <p className="text-xs text-[#6b6b66] font-light">
+                        {new Date(req.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAccept(req.id)}
+                        className="px-3 py-1 text-xs bg-[#2d2d2a] text-[#fdfcfa] uppercase tracking-wider hover:bg-opacity-80 transition-all"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => handleDecline(req.id)}
+                        className="px-3 py-1 text-xs border border-[#2d2d2a] text-[#2d2d2a] uppercase tracking-wider hover:bg-gray-50 transition-all"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -127,7 +226,7 @@ export default function ProfilePage() {
         {/* Recent Sessions */}
         <div className="space-y-6">
           {sessions.length === 0 ? (
-            <div className="border-[8px] border-[#f0ede6] bg-[#fdfcfa] p-12 text-center shadow-sm">
+            <div className="border-8 border-[#f0ede6] bg-[#fdfcfa] p-12 text-center shadow-sm">
               <p className="font-light italic text-[#6b6b66]">
                 No sessions yet. Start your first one!
               </p>
