@@ -112,3 +112,47 @@ export async function checkFriendshipStatus(targetUsername: string) {
 
   return data;
 }
+
+// Get all accepted friends
+export async function getFriendsList() {
+  const user = await currentUser();
+  if (!user?.username) return [];
+
+  // Fetch all friendships where status is 'ACCEPTED' and I am either the user or the friend
+  const { data, error } = await supabase
+    .from("friendships")
+    .select(
+      `
+      id,
+      username,
+      friend_username,
+      status,
+      sender:users!friendships_username_fkey(name, username),
+      receiver:users!friendships_friend_username_fkey(name, username)
+    `
+    )
+    .eq("status", "ACCEPTED")
+    .or(`username.eq.${user.username},friend_username.eq.${user.username}`);
+
+  if (error) {
+    console.error("Error fetching friends:", error);
+    return [];
+  }
+
+  // Normalize the list so it's just a list of friend objects
+  return data.map((f) => {
+    const isMeSender = f.username === user.username;
+    // @ts-ignore
+    const friendData = isMeSender ? f.receiver : f.sender;
+
+    return {
+      id: f.id,
+      // @ts-ignore
+      name: friendData?.name || "Unknown",
+      // @ts-ignore
+      username: friendData?.username || "Unknown",
+      totalHours: 0, // Placeholder
+      currentStreak: 0, // Placeholder
+    };
+  });
+}
