@@ -14,13 +14,13 @@ interface FriendsListProps {
 }
 
 export function FriendsList({ friends = [] }: FriendsListProps) {
-  const mockFriends: Friend[] = [
-    { id: '1', name: 'Alice Smith', totalHours: 12, currentStreak: 5 },
-    { id: '2', name: 'Bob Johnson', totalHours: 20, currentStreak: 10 },
-    { id: '3', name: 'Charlie Brown', totalHours: 8, currentStreak: 2 },
-  ];
+  // const mockFriends: Friend[] = [
+  //   { id: "1", name: "Alice Smith", totalHours: 12, currentStreak: 5 },
+  //   { id: "2", name: "Bob Johnson", totalHours: 20, currentStreak: 10 },
+  //   { id: "3", name: "Charlie Brown", totalHours: 8, currentStreak: 2 },
+  // ];
 
-  const [isModalOpen, setModalOpen] = useState(false)
+  const [isModalOpen, setModalOpen] = useState(false);
 
   const getInitial = (name: string): string => {
     return name
@@ -29,38 +29,42 @@ export function FriendsList({ friends = [] }: FriendsListProps) {
       .join("");
   };
 
-
-  const getAllFriendNames = (friends: Friend[]): string[] => {
-    return friends.map((friend)=>friend.name)
+  const getAllFriendNames = (list: Friend[]): string[] => {
+    return list.map((friend) => friend.name);
   };
 
   return (
     <>
       <div className="mb-12">
         <button
-            onClick= {() => !isModalOpen ? setModalOpen(true) : setModalOpen(false)} 
-            className="font-serif text-2xl font-light italic">
-            Friends
-        </button>
-        <h1 className="font-serif text-2xl font-light italic">{friends.length}</h1>
-      </div>
-        
-      {isModalOpen && (
-        <div 
-            className="fixed inset-0 z-10 flex items-center justify-center"
-            onClick={()=>setModalOpen(false)}
+          onClick={() =>
+            !isModalOpen ? setModalOpen(true) : setModalOpen(false)
+          }
+          className="font-serif text-2xl font-light italic"
         >
-            <div
-            className="border-[2px] bg-gray-100 p-12"
+          Friends
+        </button>
+        <h1 className="font-serif text-2xl font-light italic">
+          {friends.length}
+        </h1>
+      </div>
+
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-10 flex items-center justify-center"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="border-[2] bg-gray-100 p-12"
             onClick={(e) => e.stopPropagation()}
-            >   
-                <h1 className="font-bold pb-1 w-full h-full bg-grey">List of Friends</h1>
-                {getAllFriendNames(mockFriends).map((friend_name, index) =>
-                <div key={index}>
-                    {friend_name}
-                </div>
-            )}
-            </div>
+          >
+            <h1 className="font-bold pb-1 w-full h-full bg-grey">
+              List of Friends
+            </h1>
+            {getAllFriendNames(friends).map((friend_name, index) => (
+              <div key={index}>{friend_name}</div>
+            ))}
+          </div>
         </div>
       )}
     </>

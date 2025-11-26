@@ -6,6 +6,7 @@ export interface Database {
           id: string;
           name: string;
           email: string;
+          username: string;
           created_at: string;
         };
 
@@ -19,7 +20,7 @@ export interface Database {
       sessions: {
         Row: {
           id: string;
-          userId: string;
+          userid: string;
           title: string;
           description: string;
           duration: string;
@@ -52,8 +53,8 @@ export interface Database {
       friendships: {
         Row: {
           id: string;
-          userId: string;
-          friendId: string;
+          userid: string;
+          friendid: string;
           status: string;
           created_at: string;
         };

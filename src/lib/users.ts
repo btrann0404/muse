@@ -4,7 +4,7 @@ import "server-only";
 // import { revalidatePath } from "next/cache";
 import { supabase } from "./supabase";
 import { Database } from "@/types/database";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
 export async function getCurrentUser() {
@@ -36,6 +36,16 @@ export async function getUserInfo(
     throw error;
   }
   return data;
+}
+
+export async function isUserExist(username: string) {
+  const client = await clerkClient();
+  try {
+    const user = await client.users.getUserList({ username: [username] });
+    return user.data.length > 0;
+  } catch (e) {
+    return false;
+  }
 }
 
 export async function updateUserInfo(
